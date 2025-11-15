@@ -1,0 +1,291 @@
+-- BNHA Full Mini Script + AutoSkill per key + Anti-AFK + AutoFarm + TP Chest 2x
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+    Name = "BNHA Full Mini Script",
+    LoadingTitle = "Welcome...",
+    LoadingSubtitle = "By GAMEDES",
+    ConfigurationSaving = {Enabled=true, FolderName="BNHAAutoScript", FileName="AutoFarmQuest"},
+    KeySystem = false
+})
+
+-- Tabs
+local TabAuto = Window:CreateTab("⚔️ AutoFarm")
+local TabSkill = Window:CreateTab("🎯 AutoSkill")
+local TabTP = Window:CreateTab("📍 TP")
+
+-- Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayerS
+local RunService = game:GetService("RunService")
+local VirtualInput = game:GetService("VirtualInputManager")
+
+-- ========================
+-- Anti-AFK
+-- ========================
+local VirtualUser = game:GetService("VirtualUser")
+Players.LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+    task.wait(0.1)
+    VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+end)
+
+-- ========================
+-- Character utilities
+-- ========================
+local function ensureCharacter()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    while not char:FindFirstChild("HumanoidRootPart") do
+        char.ChildAdded:Wait()
+    end
+    return char
+end
+
+local function waitForAlive()
+    repeat task.wait(0.5) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") and LocalPlayer.Character.Humanoid.Health > 0
+    return ensureCharacter()
+end
+
+-- ========================
+-- Globals / Mob List
+-- ========================
+local TargetNames = {
+    "Bruno","Bucky","Buster","Cave Demon","Crab",
+    "Gunslinger","Gunslinger Captain","Pursuer Ghost",
+    "Sand Thing","Swordsman","Thief","Thug"
+}
+
+_G.AttackHeight = 10
+_G.AutoFarmMobs = {}
+for _, name in ipairs(TargetNames) do
+    _G.AutoFarmMobs[name] = false
+end
+
+local MobPositions = {
+    ["Bruno"] = Vector3.new(1243.5875,61.7756,-2490.2978),
+    ["Bucky"] = Vector3.new(1284.6998,58.7756,-2431.1562),
+    ["Buster"] = Vector3.new(1238.3440,61.7756,-2372.3914),
+    ["Cave Demon"] = Vector3.new(-2617.6980,64.3809,1610.6799),
+    ["Crab"] = Vector3.new(-4002.5024,58.0881,-1104.5675),
+    ["Gunslinger"] = Vector3.new(1343.8302,59.2756,-2460.9226),
+    ["Gunslinger Captain"] = Vector3.new(1362.8455,59.2756,-2397.3384),
+    ["Pursuer Ghost"] = Vector3.new(-3481.8638,673.1143,6615.5166),
+    ["Sand Thing"] = Vector3.new(-1111.9569,120.5424,-5726.2915),
+    ["Swordsman"] = Vector3.new(1389.4289,92.1756,-2528.0271),
+    ["Thief"] = Vector3.new(128.5880,107.4416,-679.3936),
+    ["Thug"] = Vector3.new(1027.8970,108.2081,1171.7115)
+}
+
+-- ========================
+-- AutoSkill per key
+-- ========================
+_G.SkillDelay = 3
+local SkillKeys = {"Z","X","C","V","B","N","F","G","H","K","L"}
+local AutoSkillEnabled = {}
+for _, k in ipairs(SkillKeys) do
+    AutoSkillEnabled[k] = false
+end
+
+spawn(function()
+    while true do
+        for _, key in ipairs(SkillKeys) do
+            if AutoSkillEnabled[key] then
+                pcall(function()
+                    VirtualInput:SendKeyEvent(true,key,false,game)
+                    task.wait(0.03)
+                    VirtualInput:SendKeyEvent(false,key,false,game)
+                end)
+                task.wait(0.05)
+            end
+        end
+        task.wait(math.max(0.1,_G.SkillDelay))
+    end
+end)
+
+-- ========================
+-- AutoFarm
+-- ========================
+function AutoFarmMain(flagName)
+    task.spawn(function()
+        local char = ensureCharacter()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+
+        -- วาปไปพิกัสใกล้มอนก่อนครั้งแรก
+        local firstMob = nil
+        for _, mobName in ipairs(TargetNames) do
+            if _G.AutoFarmMobs[mobName] then
+                firstMob = MobPositions[mobName]
+                break
+            end
+        end
+        if firstMob and hrp then
+            hrp.CFrame = CFrame.new(firstMob)
+            task.wait(0.5)
+        end
+
+        Rayfield:Notify({Title="AutoFarm",Content="AutoFarm started",Duration=4})
+
+        while _G[flagName] do
+            if not char or not hum or not hrp then waitForAlive() end
+
+            local mobsFolder = workspace:FindFirstChild("MOBS")
+            local mobs = mobsFolder and mobsFolder:FindFirstChild("Mobs") and mobsFolder.Mobs:GetChildren() or {}
+            local currentTarget = nil
+
+            for _, mob in ipairs(mobs) do
+                if _G.AutoFarmMobs[mob.Name] and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health>0 and mob:FindFirstChild("HumanoidRootPart") then
+                    currentTarget = mob
+                    break
+                end
+            end
+
+            if currentTarget then
+                local targetHRP = currentTarget.HumanoidRootPart
+                local targetPos = targetHRP.Position + Vector3.new(0,_G.AttackHeight,0)
+                local angle = CFrame.Angles(math.rad(-90),0,0)
+                local smooth = 0.25
+
+                while currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health>0 and _G[flagName] and hum and hum.Health>0 do
+                    local goal = CFrame.new(targetPos)*angle
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity=Vector3.zero
+                        hrp.AssemblyAngularVelocity=Vector3.zero
+                        hrp.CFrame = hrp.CFrame:Lerp(goal,smooth)
+                    end)
+                    if not hum.Sit then hum.Sit=true end
+                    local swing = char:FindFirstChild("Main") and char.Main:FindFirstChild("Swing")
+                    if swing then pcall(function() swing:FireServer(targetHRP.Position,targetHRP) end) end
+                    RunService.Heartbeat:Wait()
+                end
+                if hum then pcall(function() hum.Sit=false end) end
+            end
+            task.wait(0.2)
+        end
+    end)
+end
+
+-- ========================
+-- UI: AutoFarm
+-- ========================
+TabAuto:CreateToggle({
+    Name="Start AutoFarm",
+    CurrentValue=false,
+    Callback=function(val)
+        _G.AutoFarm=val
+        if val then AutoFarmMain("AutoFarm") end
+    end
+})
+
+TabAuto:CreateSlider({
+    Name="📏 Attack Height",
+    Range={0,50},
+    Increment=1,
+    Suffix=" studs",
+    CurrentValue=_G.AttackHeight,
+    Callback=function(v)
+        _G.AttackHeight=v
+        Rayfield:Notify({Title="Attack Height Changed",Content="Current attack height: "..v.." studs",Duration=2})
+    end
+})
+
+for _, name in ipairs(TargetNames) do
+    TabAuto:CreateToggle({
+        Name="Attack "..name,
+        CurrentValue=false,
+        Callback=function(v) _G.AutoFarmMobs[name]=v end
+    })
+end
+
+-- ========================
+-- UI: AutoSkill
+-- ========================
+TabSkill:CreateToggle({
+    Name="Auto Skill All (Z/X/C/V/B/N/F/G/H/K/L)",
+    CurrentValue=false,
+    Callback=function(val)
+        for _, k in ipairs(SkillKeys) do AutoSkillEnabled[k]=val end
+    end
+})
+for _, k in ipairs(SkillKeys) do
+    TabSkill:CreateToggle({
+        Name="Auto Skill ["..k.."]",
+        CurrentValue=false,
+        Callback=function(v) AutoSkillEnabled[k]=v end
+    })
+end
+TabSkill:CreateSlider({
+    Name="⏱️ Skill Delay (sec)",
+    Range={1,10},
+    Increment=0.5,
+    Suffix="s",
+    CurrentValue=_G.SkillDelay,
+    Callback=function(v) _G.SkillDelay=v end
+})
+
+-- ========================
+-- UI: TP Chest
+-- ========================
+local ChestPositions = {
+    Vector3.new(-188.717148, 64.656044, -436.626831),
+    Vector3.new(25.3444691, 113.656021, -724.233582),
+    Vector3.new(27.9497013, 113.656021, -719.877686),
+    Vector3.new(22.9215698, 113.656021, -720.092102),
+    Vector3.new(-267.405853, 173.356018, 568.587158),
+    Vector3.new(217.286209, 103.506027, 695.476685),
+    Vector3.new(-192.85907, 58.6560402, -196.1035),
+    Vector3.new(175.939453, 53.7026825, -437.321594),
+    Vector3.new(924.444702, 78.957580, 1315.169922),
+    Vector3.new(-267.410797, 173.374145, 568.583679),
+    Vector3.new(-910.463073, 56.665039, 1364.750977),
+    Vector3.new(1386.634155, 93.239029, -2565.972168),
+    Vector3.new(1399.634033, 93.239029, -2553.471924),
+    Vector3.new(-2553.730225, 257.786224, 1515.036255),
+    Vector3.new(-2876.457031, 59.335068, 1290.683594),
+    Vector3.new(-6376.715332, 108.624741, 3585.604248),
+    Vector3.new(-8787.6875, 233.982086, 3477.028565),
+    Vector3.new(-4826.300781, 78.734787, 5369.638184),
+    Vector3.new(-4660.563965, 302.803223, 7273.436035),
+    Vector3.new(-2596.953369, 185.422058, 6236.285156),
+    Vector3.new(-1055.06897, 161.292419, -5777.697754),
+    Vector3.new(-1056.720337, 161.292419, -5787.062012),
+    Vector3.new(-1084.029053, 161.292419, -5812.652832),
+    Vector3.new(-1060.02063, 161.292419, -5805.773438),
+    Vector3.new(-1053.420044, 161.292419, -5768.351074),
+    Vector3.new(-1058.369751, 161.292419, -5796.413574),
+    Vector3.new(-1121.451538, 161.292419, -5806.053223),
+    Vector3.new(-1130.811768, 161.292419, -5804.402344),
+    Vector3.new(-1102.73584, 161.292419, -5809.354004),
+    Vector3.new(-1093.389038, 161.292419, -5811.00293),
+    Vector3.new(-1074.668945, 161.292419, -5814.303223),
+    Vector3.new(-1112.100342, 161.292419, -5807.702637)
+}
+
+_G.TP_Chest=false
+
+TabTP:CreateToggle({
+    Name="TP Chest",
+    CurrentValue=false,
+    Callback=function(v)
+        _G.TP_Chest=v
+        task.spawn(function()
+            local char = ensureCharacter()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            while _G.TP_Chest do
+                if hrp then
+                    for _, pos in ipairs(ChestPositions) do
+                        if not _G.TP_Chest then break end
+                        for i=1,2 do
+                            if not _G.TP_Chest then break end
+                            hrp.CFrame = CFrame.new(pos)
+                            task.wait(0.5)
+                        end
+                        task.wait(0.3)
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+})
+
+Rayfield:Notify({Title="BNHA Full Mini Script",Content="Script loaded + AutoSkill + AutoFarm + TP Chest 2x + Anti-AFK",Duration=4})
