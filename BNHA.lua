@@ -314,6 +314,24 @@ TabAuto:CreateToggle({
     end
 })
 
+-- === เพิ่ม Mirko toggle (ตามที่ขอ) ===
+TabAuto:CreateToggle({
+    Name = "🐇 Mirko 1000–MAX",
+    CurrentValue = false,
+    Callback = function(val)
+        _G.AutoFarmMirko = val
+        if val then
+            AutoFarmMain(
+                "AutoFarmMirko",
+                "QUEST_MIRKO_1",
+                {"Mirko"},
+                {workspace:FindFirstChild("NPCs")}
+            )
+        end
+    end
+})
+-- =======================================
+
 TabAuto:CreateSlider({
     Name = "📏 Attack Height",
     Range = {5,200},
